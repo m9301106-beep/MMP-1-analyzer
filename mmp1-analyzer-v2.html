@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MMP-1 Analyzer v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1c2333;--border:#30363d;--accent:#58a6ff;--accent2:#3fb950;--warn:#d29922;--danger:#f85149;--text:#e6edf3;--muted:#8b949e;--mono:'DM Mono',monospace;--sans:'Syne',sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;padding-bottom:60px}
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.logo{font-size:22px}.header-title{font-size:17px;font-weight:800;letter-spacing:.5px}
+.header-sub{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.sync-dot{width:8px;height:8px;border-radius:50%;margin-left:auto;transition:background .3s}
+.sync-dot.ok{background:var(--accent2)}.sync-dot.err{background:var(--danger)}.sync-dot.pending{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:1;min-width:70px;padding:11px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;user-select:none}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-icon{display:block;font-size:17px;margin-bottom:2px}
+.panel{display:none;padding:20px}.panel.active{display:block}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.card-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;font-family:var(--mono)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px;padding:10px 12px;margin-bottom:12px;outline:none;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+input[type=file]{padding:8px;cursor:pointer}
+input[type=checkbox]{width:auto;margin:0;cursor:pointer;accent-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 18px;border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .18s;width:100%;margin-bottom:8px}
+.btn-primary{background:var(--accent);color:#0d1117}.btn-primary:hover{filter:brightness(1.15)}
+.btn-success{background:var(--accent2);color:#0d1117}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-warn{background:#2d2a1a;color:var(--warn);border:1px solid #5a4a2d}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:6px 12px;font-size:12px;width:auto;margin-bottom:0}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s;position:relative}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-icon{font-size:40px;margin-bottom:10px}.upload-text{color:var(--muted);font-size:14px}.upload-text strong{color:var(--accent)}
+#preview-img{width:100%;max-height:320px;object-fit:contain;border-radius:10px;background:#000;display:none;margin-bottom:12px}
+.result-banner{border-radius:12px;padding:20px;text-align:center;border:2px solid;margin-bottom:16px}
+.result-label{font-size:11px;font-weight:800;letter-spacing:3px;font-family:var(--mono)}
+.result-conc{font-size:52px;font-weight:800;line-height:1.1;margin:6px 0}
+.result-unit{font-size:16px;font-weight:400;color:var(--muted)}
+.result-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.metric-row:last-child{border-bottom:none}
+.metric-key{color:var(--muted);font-family:var(--mono);font-size:12px}
+.metric-val{font-weight:600;font-family:var(--mono)}
+.ibar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ibar-label{width:20px;font-size:12px;font-weight:700;color:var(--muted);font-family:var(--mono)}
+.ibar-track{flex:1;height:10px;background:var(--bg3);border-radius:5px;overflow:hidden}
+.ibar-fill{height:100%;border-radius:5px;transition:width .6s ease}
+.ibar-val{width:32px;font-size:12px;font-family:var(--mono);text-align:right}
+.lot-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.lot-name{font-weight:700;font-size:15px}.lot-meta{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.lot-badge{font-size:10px;padding:3px 8px;border-radius:20px;font-family:var(--mono);font-weight:700}
+.badge-ok{background:#1a3a2a;color:var(--accent2);border:1px solid #2d5a3d}
+.badge-pend{background:#2d2a1a;color:var(--warn);border:1px solid #5a4a2d}
+.cal-table{width:100%;border-collapse:collapse;font-size:13px}
+.cal-table th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)}
+.cal-table td{padding:8px;border-bottom:1px solid var(--bg3);font-family:var(--mono)}
+.cal-table tr:last-child td{border-bottom:none}
+.hist-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.hist-conc{font-size:22px;font-weight:800;font-family:var(--mono)}
+.hist-meta{font-size:11px;color:var(--muted);margin-top:2px}
+#loading{display:none;position:fixed;inset:0;background:rgba(13,17,23,.88);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+#loading.show{display:flex}
+.spinner{width:56px;height:56px;border:3px solid var(--bg3);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-step{color:var(--muted);font-size:13px;font-family:var(--mono);text-align:center}
+.loading-title{color:var(--text);font-size:16px;font-weight:700}
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:1000}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.chart-wrap{position:relative;height:220px}
+.api-key-wrap{position:relative}.api-key-wrap input{padding-right:44px}
+.toggle-key{position:absolute;right:10px;top:50%;transform:translateY(-70%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.scale-bar{position:relative;height:14px;border-radius:7px;overflow:visible;display:flex;margin:8px 0 4px}
+.scale-seg{height:100%}
+.scale-pointer{position:absolute;top:-3px;width:4px;height:20px;background:#fff;border-radius:2px;transform:translateX(-50%);transition:left .6s ease}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:12px}.empty-text{font-size:15px;font-weight:600}.empty-sub{font-size:13px;margin-top:6px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row2 .btn{margin-bottom:0}
+select option{background:var(--bg2)}
+
+/* Export panel */
+.col-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.col-item{display:flex;align-items:center;gap:8px;font-size:13px;font-family:var(--mono);cursor:pointer;padding:6px 8px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)}
+.col-item:hover{border-color:var(--accent)}
+.col-item input[type=checkbox]{flex-shrink:0}
+.filter-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Sheets status */
+.sheets-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.sheets-row:last-child{border-bottom:none}
+.sheets-key{color:var(--muted);font-family:var(--mono);font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">⬡</div>
+  <div>
+    <div class="header-title">MMP-1 Analyzer</div>
+    <div class="header-sub">v2 · Sheets 同步</div>
+  </div>
+  <div class="sync-dot pending" id="sync-dot" title="Sheets 連線狀態"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('analyze')"><span class="tab-icon">🔬</span>分析</div>
+  <div class="tab" onclick="switchTab('lots')"><span class="tab-icon">🗂</span>批次</div>
+  <div class="tab" onclick="switchTab('curve')"><span class="tab-icon">📈</span>標準曲線</div>
+  <div class="tab" onclick="switchTab('export')"><span class="tab-icon">📊</span>匯出</div>
+  <div class="tab" onclick="switchTab('history')"><span class="tab-icon">📋</span>記錄</div>
+  <div class="tab" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span>設定</div>
+</div>
+
+<!-- ══ ANALYZE ══ -->
+<div class="panel active" id="panel-analyze">
+  <div class="card">
+    <div class="card-title">選擇批次</div>
+    <label>試劑批次 Lot Number</label>
+    <select id="analyze-lot-select"></select>
+    <div id="lot-curve-status" style="font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:10px;font-family:var(--mono)"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">上傳試片照片</div>
+    <img id="preview-img" alt="preview">
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" accept="image/*" capture="environment" id="file-input" onchange="handleFileSelect(event)">
+      <div class="upload-icon">📷</div>
+      <div class="upload-text"><strong>點擊拍照或選取圖片</strong><br>支援 JPG、PNG</div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">⚠️ 均勻光源、深色背景、試片清晰佔畫面 70%</div>
+  </div>
+  <button class="btn btn-primary" id="analyze-btn" onclick="runAnalysis()" disabled>🔬 開始分析</button>
+
+  <div id="result-section" style="display:none">
+    <div id="result-banner" class="result-banner">
+      <div id="res-label" class="result-label"></div>
+      <div id="res-conc" class="result-conc"></div>
+      <div id="res-desc" class="result-desc"></div>
+    </div>
+    <div class="card" id="scale-card">
+      <div class="card-title">濃度量尺</div>
+      <div class="scale-bar">
+        <div class="scale-seg" style="width:10%;background:#22c55e;border-radius:7px 0 0 7px"></div>
+        <div class="scale-seg" style="width:10%;background:#d29922"></div>
+        <div class="scale-seg" style="width:80%;background:#f85149;border-radius:0 7px 7px 0"></div>
+        <div class="scale-pointer" id="scale-ptr" style="left:0%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:var(--mono)"><span>0</span><span>25</span><span>250+ ng/mL</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">條帶強度（色彩校正後）</div>
+      <div class="ibar-row"><div class="ibar-label">C</div><div class="ibar-track"><div class="ibar-fill" id="c-bar" style="background:#58a6ff;width:0%"></div></div><div class="ibar-val" id="c-val">—</div></div>
+      <div class="ibar-row"><div class="ibar-label">T</div><div class="ibar-track"><div class="ibar-fill" id="t-bar" style="background:#f85149;width:0%"></div></div><div class="ibar-val" id="t-val">—</div></div>
+      <div class="divider"></div>
+      <div class="metric-row"><span class="metric-key">T/C ratio（校正後）</span><span class="metric-val" id="res-ratio">—</span></div>
+      <div class="metric-row"><span class="metric-key">白點校正值</span><span class="metric-val" id="res-white">—</span></div>
+      <div class="metric-row"><span class="metric-key">黑點校正值</span><span class="metric-val" id="res-black">—</span></div>
+      <div class="metric-row"><span class="metric-key">影像品質</span><span class="metric-val" id="res-quality">—</span></div>
+      <div class="metric-row"><span class="metric-key">批次 / 曲線</span><span class="metric-val" id="res-lot">—</span></div>
+    </div>
+    <div class="row2">
+      <button class="btn btn-success btn-sm" style="width:100%;padding:11px" onclick="saveToHistory()">💾 儲存</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;padding:11px" onclick="resetAnalysis()">🔄 重新</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOTS ══ -->
+<div class="panel" id="panel-lots">
+  <div class="card">
+    <div class="card-title">新增批次</div>
+    <label>批次編號 Lot Number</label>
+    <input type="text" id="new-lot-id" placeholder="例：LOT-2025-001">
+    <label>說明（選填）</label>
+    <input type="text" id="new-lot-desc" placeholder="例：MMP-1 試片 第一批">
+    <label>有效期限（選填）</label>
+    <input type="date" id="new-lot-expiry">
+    <button class="btn btn-success" onclick="addLot()">＋ 建立批次</button>
+  </div>
+  <div class="card">
+    <div class="card-title">批次列表</div>
+    <div id="lot-list"></div>
+  </div>
+</div>
+
+<!-- ══ CURVE ══ -->
+<div class="panel" id="panel-curve">
+  <div class="card">
+    <div class="card-title">選擇批次</div>
+    <select id="curve-lot-select" onchange="renderCurvePanel()"></select>
+  </div>
+  <div id="curve-content" style="display:none">
+    <div class="card">
+      <div class="card-title">新增校正點</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>已知濃度 (ng/mL)</label><input type="number" id="cal-conc" placeholder="50" min="0" step="any"></div>
+        <div><label>T/C ratio</label><input type="number" id="cal-ratio" placeholder="0.650" min="0" step="any"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px;font-family:var(--mono)">💡 先用分析頁拍攝已知濃度試片，取得 T/C ratio 後填入</div>
+      <button class="btn btn-primary" onclick="addCalPoint()">＋ 加入校正點</button>
+    </div>
+    <div class="card">
+      <div class="card-title" id="cal-points-title">校正點資料</div>
+      <div id="cal-points-content"></div>
+    </div>
+    <div class="card" id="curve-chart-card" style="display:none">
+      <div class="card-title">標準曲線預覽</div>
+      <div class="chart-wrap"><canvas id="curve-chart"></canvas></div>
+      <div id="curve-fit-info" style="margin-top:12px;font-size:12px;font-family:var(--mono);color:var(--muted)"></div>
+    </div>
+    <button class="btn btn-success" id="fit-btn" onclick="fitCurve()" style="display:none">📐 擬合標準曲線</button>
+  </div>
+</div>
+
+<!-- ══ EXPORT ══ -->
+<div class="panel" id="panel-export">
+  <div class="card">
+    <div class="card-title">篩選條件</div>
+    <div class="filter-row">
+      <div>
+        <label>批次篩選</label>
+        <select id="export-lot-filter"><option value="">全部批次</option></select>
+      </div>
+      <div>
+        <label>結果篩選</label>
+        <select id="export-result-filter">
+          <option value="">全部結果</option>
+          <option value="NEGATIVE">陰性</option>
+          <option value="WEAK POS">弱陽性</option>
+          <option value="POSITIVE">陽性</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label>開始日期</label><input type="date" id="export-date-from"></div>
+      <div><label>結束日期</label><input type="date" id="export-date-to"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">選擇輸出欄位</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm" onclick="selectAllCols(true)">全選</button>
+      <button class="btn btn-ghost btn-sm" onclick="selectAllCols(false)">全不選</button>
+    </div>
+    <div class="col-grid" id="col-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">統計摘要</div>
+    <div id="export-summary"></div>
+  </div>
+
+  <button class="btn btn-primary" onclick="exportCSV()">⬇ 下載 CSV</button>
+  <button class="btn btn-ghost" onclick="refreshExportPreview()">🔄 更新預覽</button>
+</div>
+
+<!-- ══ HISTORY ══ -->
+<div class="panel" id="panel-history">
+  <div class="card" style="padding:14px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="card-title" style="margin:0">歷史記錄</span>
+      <button class="btn btn-danger btn-sm" onclick="clearHistory()">清除全部</button>
+    </div>
+  </div>
+  <div id="history-list"></div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div class="panel" id="panel-settings">
+  <div class="card">
+    <div class="card-title">Anthropic API Key</div>
+    <div class="api-key-wrap">
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-...">
+      <button class="toggle-key" onclick="toggleKeyVis()">👁</button>
+    </div>
+    <button class="btn btn-primary" onclick="saveApiKey()">儲存 API Key</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Google Sheets 連線</div>
+    <label>Apps Script Web App URL</label>
+    <input type="text" id="script-url-input" placeholder="https://script.google.com/macros/s/...">
+    <button class="btn btn-primary" onclick="saveScriptUrl()">儲存並測試連線</button>
+    <div id="sheets-status" style="margin-top:8px;font-size:12px;font-family:var(--mono)"></div>
+    <div class="divider"></div>
+    <div class="sheets-row"><span class="sheets-key">連線狀態</span><span id="sh-conn">—</span></div>
+    <div class="sheets-row"><span class="sheets-key">最後同步</span><span id="sh-sync-time">—</span></div>
+    <div class="sheets-row"><span class="sheets-key">Sheets 記錄筆數</span><span id="sh-count">—</span></div>
+    <div class="divider"></div>
+    <button class="btn btn-ghost" onclick="syncNow()">🔄 立即同步 Sheets</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">判讀臨界值</div>
+    <label>弱陽性閾值 (ng/mL)</label><input type="number" id="thresh-weak" value="25" min="0">
+    <label>陽性閾值 (ng/mL)</label><input type="number" id="thresh-pos" value="45" min="0">
+    <button class="btn btn-ghost" onclick="saveThresholds()">儲存臨界值</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">資料管理</div>
+    <button class="btn btn-ghost" onclick="exportJSON()">📤 備份所有資料 (JSON)</button>
+    <button class="btn btn-danger" onclick="clearAllData()">🗑 清除所有本機資料</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">關於</div>
+    <div class="metric-row"><span class="metric-key">版本</span><span class="metric-val">2.0.0</span></div>
+    <div class="metric-row"><span class="metric-key">分析模型</span><span class="metric-val">claude-sonnet-4</span></div>
+    <div class="metric-row"><span class="metric-key">色彩校正</span><span class="metric-val">白殼＋C/T字樣</span></div>
+    <div class="metric-row"><span class="metric-key">曲線擬合</span><span class="metric-val">4PL / 線性插值</span></div>
+    <div class="metric-row"><span class="metric-key">資料同步</span><span class="metric-val">Google Sheets</span></div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div><div class="loading-title">處理中</div><div class="loading-step" id="loading-step">請稍候…</div></div>
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════════════
+const DB = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+const getLots     = () => DB.get('mmp1_lots')     || [];
+const getHistory  = () => DB.get('mmp1_history')  || [];
+const getSettings = () => DB.get('mmp1_settings') || { weakThresh:25, posThresh:45 };
+
+let currentResult  = null;
+let curveChartInst = null;
+
+// ═══════════════════════════════════════════════════════
+//  GOOGLE SHEETS API
+// ═══════════════════════════════════════════════════════
+function getScriptUrl() { return DB.get('mmp1_script_url') || ''; }
+
+async function sheetsGet(params) {
+  const url = getScriptUrl();
+  if (!url) throw new Error('未設定 Apps Script URL');
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${url}?${qs}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function sheetsPost(body) {
+  const url = getScriptUrl();
+  if (!url) throw new Error('未設定 Apps Script URL');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function testConnection() {
+  try {
+    setSyncDot('pending');
+    const lots = await sheetsGet({ action: 'getLots' });
+    setSyncDot('ok');
+    DB.set('mmp1_sh_sync', new Date().toISOString());
+    updateSheetsStatus(true, lots.length);
+    return true;
+  } catch (e) {
+    setSyncDot('err');
+    updateSheetsStatus(false);
+    return false;
+  }
+}
+
+function setSyncDot(state) {
+  const d = document.getElementById('sync-dot');
+  d.className = 'sync-dot ' + state;
+  d.title = { ok:'Sheets 已連線', err:'Sheets 連線失敗', pending:'連線中…' }[state];
+}
+
+function updateSheetsStatus(ok, count) {
+  document.getElementById('sh-conn').textContent = ok ? '✓ 已連線' : '✗ 未連線';
+  document.getElementById('sh-conn').style.color = ok ? 'var(--accent2)' : 'var(--danger)';
+  if (count !== undefined) document.getElementById('sh-count').textContent = count + ' 筆';
+  const t = DB.get('mmp1_sh_sync');
+  if (t) document.getElementById('sh-sync-time').textContent = new Date(t).toLocaleString('zh-TW');
+}
+
+async function syncNow() {
+  if (!getScriptUrl()) return toast('請先設定 Apps Script URL');
+  showLoading(true, '同步至 Google Sheets…');
+  try {
+    // Push all lots
+    await sheetsPost({ action: 'syncLots', lots: getLots() });
+    // Pull history count
+    const h = await sheetsGet({ action: 'getHistory' });
+    DB.set('mmp1_sh_sync', new Date().toISOString());
+    setSyncDot('ok');
+    updateSheetsStatus(true, h.length);
+    toast(`✓ 同步完成，Sheets 共 ${h.length} 筆記錄`);
+  } catch (e) {
+    setSyncDot('err');
+    toast('同步失敗：' + e.message);
+  }
+  showLoading(false);
+}
+
+// ═══════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const names = ['analyze','lots','curve','export','history','settings'];
+  document.querySelectorAll('.tab')[names.indexOf(name)].classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if (name==='analyze') refreshLotSelect();
+  if (name==='lots')    renderLots();
+  if (name==='curve')   refreshCurveLotSelect();
+  if (name==='export')  initExportPanel();
+  if (name==='history') renderHistory();
+  if (name==='settings'){ loadSettings(); testConnection(); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOT MANAGEMENT
+// ═══════════════════════════════════════════════════════
+async function addLot() {
+  const id = document.getElementById('new-lot-id').value.trim();
+  if (!id) return toast('請輸入批次編號');
+  const lots = getLots();
+  if (lots.find(l => l.id === id)) return toast('批次編號已存在');
+  const lot = { id, desc: document.getElementById('new-lot-desc').value.trim(), expiry: document.getElementById('new-lot-expiry').value, points:[], fitted:false, fitType:null, fitParams:null, createdAt:new Date().toISOString() };
+  lots.push(lot);
+  DB.set('mmp1_lots', lots);
+  // Sync to Sheets
+  if (getScriptUrl()) {
+    try { await sheetsPost({ action:'saveLot', lot }); setSyncDot('ok'); }
+    catch(e) { setSyncDot('err'); }
+  }
+  document.getElementById('new-lot-id').value='';
+  document.getElementById('new-lot-desc').value='';
+  document.getElementById('new-lot-expiry').value='';
+  renderLots();
+  toast('✓ 批次已建立：'+id);
+}
+
+async function deleteLot(id) {
+  if (!confirm(`確定刪除批次「${id}」？`)) return;
+  DB.set('mmp1_lots', getLots().filter(l => l.id !== id));
+  if (getScriptUrl()) {
+    try { await sheetsPost({ action:'deleteLot', id }); } catch(e){}
+  }
+  renderLots();
+  toast('批次已刪除');
+}
+
+function renderLots() {
+  const lots = getLots();
+  const el = document.getElementById('lot-list');
+  if (!lots.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">🗂</div><div class="empty-text">尚無批次</div></div>'; return; }
+  el.innerHTML = lots.map(l=>`
+    <div class="lot-item">
+      <div>
+        <div class="lot-name">${l.id}</div>
+        <div class="lot-meta">${l.desc||'—'}${l.expiry?'  ·  效期 '+l.expiry:''}</div>
+        <div class="lot-meta" style="margin-top:4px">校正點：${l.points.length} 個</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <span class="lot-badge ${l.fitted?'badge-ok':'badge-pend'}">${l.fitted?'✓ 已擬合':'待校正'}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteLot('${l.id}')">刪除</button>
+      </div>
+    </div>`).join('');
+}
+
+function refreshLotSelect() {
+  const lots = getLots();
+  ['analyze-lot-select','curve-lot-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— 選擇批次 —</option>' +
+      lots.map(l=>`<option value="${l.id}">${l.id}${l.fitted?' ✓':' (未校正)'}</option>`).join('');
+  });
+  updateLotStatus();
+}
+
+function updateLotStatus() {
+  const id  = document.getElementById('analyze-lot-select').value;
+  const el  = document.getElementById('lot-curve-status');
+  const btn = document.getElementById('analyze-btn');
+  const hasFile = document.getElementById('preview-img').style.display !== 'none';
+  if (!id) { el.textContent=''; btn.disabled=true; return; }
+  const lot = getLots().find(l=>l.id===id);
+  if (!lot) return;
+  if (lot.fitted) { el.style.color='var(--accent2)'; el.textContent=`✓ 標準曲線已擬合（${lot.fitType}，${lot.points.length} 點）`; }
+  else            { el.style.color='var(--warn)';    el.textContent='⚠ 尚未建立標準曲線，將輸出 T/C ratio'; }
+  btn.disabled = !hasFile;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('analyze-lot-select').addEventListener('change', updateLotStatus);
+  refreshLotSelect();
+  initExportColumns();
+  // Auto test connection if URL saved
+  if (getScriptUrl()) testConnection();
+  else setSyncDot('err');
+});
+
+// ═══════════════════════════════════════════════════════
+//  STANDARD CURVE
+// ═══════════════════════════════════════════════════════
+function refreshCurveLotSelect() {
+  refreshLotSelect();
+  renderCurvePanel();
+}
+
+function renderCurvePanel() {
+  const id = document.getElementById('curve-lot-select').value;
+  const content = document.getElementById('curve-content');
+  if (!id) { content.style.display='none'; return; }
+  content.style.display='block';
+  const lot = getLots().find(l=>l.id===id);
+  if (lot) { renderCalPoints(lot); updateCurveChart(lot); }
+}
+
+async function addCalPoint() {
+  const id    = document.getElementById('curve-lot-select').value;
+  const conc  = parseFloat(document.getElementById('cal-conc').value);
+  const ratio = parseFloat(document.getElementById('cal-ratio').value);
+  if (!id)          return toast('請先選擇批次');
+  if (isNaN(conc))  return toast('請輸入有效濃度');
+  if (isNaN(ratio)) return toast('請輸入有效 T/C ratio');
+  const lots = getLots();
+  const lot  = lots.find(l=>l.id===id);
+  lot.points.push({ conc, ratio, addedAt:new Date().toISOString() });
+  lot.fitted = false;
+  DB.set('mmp1_lots', lots);
+  if (getScriptUrl()) { try { await sheetsPost({ action:'saveLot', lot }); } catch(e){} }
+  document.getElementById('cal-conc').value='';
+  document.getElementById('cal-ratio').value='';
+  renderCurvePanel();
+  toast(`✓ 校正點加入：${conc} ng/mL → T/C ${ratio}`);
+}
+
+function removeCalPoint(lotId, idx) {
+  const lots = getLots();
+  const lot  = lots.find(l=>l.id===lotId);
+  lot.points.splice(idx,1);
+  lot.fitted = false;
+  DB.set('mmp1_lots', lots);
+  if (getScriptUrl()) { sheetsPost({ action:'saveLot', lot }).catch(()=>{}); }
+  renderCurvePanel();
+}
+
+function renderCalPoints(lot) {
+  const el = document.getElementById('cal-points-content');
+  document.getElementById('cal-points-title').textContent = `校正點資料（${lot.points.length} 點）`;
+  document.getElementById('fit-btn').style.display = lot.points.length>=2 ? 'block':'none';
+  if (!lot.points.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">尚無校正點</div>'; return; }
+  const sorted = [...lot.points].sort((a,b)=>a.conc-b.conc);
+  el.innerHTML=`<table class="cal-table"><tr><th>#</th><th>濃度 (ng/mL)</th><th>T/C ratio</th><th></th></tr>${sorted.map((p,i)=>`<tr><td>${i+1}</td><td>${p.conc}</td><td>${p.ratio.toFixed(4)}</td><td><button class="btn btn-danger btn-sm" onclick="removeCalPoint('${lot.id}',${lot.points.indexOf(p)})">✕</button></td></tr>`).join('')}</table>`;
+}
+
+function updateCurveChart(lot) {
+  const card = document.getElementById('curve-chart-card');
+  if (lot.points.length<2) { card.style.display='none'; return; }
+  card.style.display='block';
+  const sorted = [...lot.points].sort((a,b)=>a.conc-b.conc);
+  const datasets = [{ label:'校正點', data:sorted.map(p=>({x:p.conc,y:p.ratio})), borderColor:'#58a6ff', backgroundColor:'#58a6ff', pointRadius:6, showLine:false, type:'scatter' }];
+  if (lot.fitted && lot.fitParams) {
+    const maxC = Math.max(...sorted.map(p=>p.conc))*1.2;
+    const pts=[];
+    for(let c=0;c<=maxC;c+=maxC/80) pts.push({x:c,y:predictRatio(lot,c)});
+    datasets.push({ label:lot.fitType==='4PL'?'4PL 擬合':'線性插值', data:pts, borderColor:'#3fb950', backgroundColor:'transparent', pointRadius:0, borderWidth:2, type:'line', tension:0.4 });
+  }
+  if (curveChartInst) curveChartInst.destroy();
+  curveChartInst = new Chart(document.getElementById('curve-chart'),{
+    type:'scatter', data:{datasets},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8b949e',font:{family:'DM Mono',size:11}}}},
+      scales:{x:{title:{display:true,text:'濃度 (ng/mL)',color:'#8b949e'},ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
+              y:{title:{display:true,text:'T/C ratio',color:'#8b949e'},ticks:{color:'#8b949e'},grid:{color:'#21262d'}}} }
+  });
+}
+
+function fit4PL(points) {
+  if (points.length<4) return null;
+  const xs=points.map(p=>p.conc), ys=points.map(p=>p.ratio);
+  let A=Math.min(...ys),D=Math.max(...ys),C=xs[Math.floor(xs.length/2)],B=1.0;
+  const f=(x,a,b,c,d)=>d+(a-d)/(1+Math.pow(x/c,b));
+  const sse=(a,b,c,d)=>xs.reduce((s,x,i)=>s+(f(x,a,b,c,d)-ys[i])**2,0);
+  const lr=1e-4,step=0.01;
+  for(let i=0;i<8000;i++){
+    const e=sse(A,B,C,D);
+    A-=step*(sse(A+lr,B,C,D)-e)/lr;
+    B-=step*(sse(A,B+lr,C,D)-e)/lr;
+    C=Math.max(0.001,C-step*(sse(A,B,C+lr,D)-e)/lr);
+    D-=step*(sse(A,B,C,D+lr)-e)/lr;
+  }
+  const mean=ys.reduce((s,y)=>s+y,0)/ys.length;
+  const r2=1-xs.reduce((s,x,i)=>s+(f(x,A,B,C,D)-ys[i])**2,0)/ys.reduce((s,y)=>s+(y-mean)**2,0);
+  return {A,B,C,D,r2};
+}
+
+async function fitCurve() {
+  const id=document.getElementById('curve-lot-select').value;
+  const lots=getLots(); const lot=lots.find(l=>l.id===id);
+  if(!lot||lot.points.length<2) return toast('校正點不足');
+  const sorted=[...lot.points].sort((a,b)=>a.conc-b.conc);
+  let fitType,fitParams;
+  if(lot.points.length>=6){
+    const r=fit4PL(sorted);
+    if(r&&r.r2>0.90){ fitType='4PL'; fitParams={A:r.A,B:r.B,C:r.C,D:r.D,r2:r.r2}; }
+    else { fitType='linear'; fitParams={points:sorted}; }
+  } else { fitType='linear'; fitParams={points:sorted}; }
+  lot.fitted=true; lot.fitType=fitType; lot.fitParams=fitParams;
+  DB.set('mmp1_lots',lots);
+  if(getScriptUrl()){ try{ await sheetsPost({action:'saveLot',lot}); setSyncDot('ok'); }catch(e){ setSyncDot('err'); } }
+  const info=document.getElementById('curve-fit-info');
+  if(fitType==='4PL'){ info.innerHTML=`擬合：4PL  |  R²=${fitParams.r2.toFixed(4)}<br>A=${fitParams.A.toFixed(3)} B=${fitParams.B.toFixed(3)} C=${fitParams.C.toFixed(3)} D=${fitParams.D.toFixed(3)}`; info.style.color=fitParams.r2>0.99?'var(--accent2)':'var(--warn)'; }
+  else { info.textContent=`擬合：線性插值（${sorted.length} 點）`; info.style.color='var(--accent)'; }
+  renderCurvePanel();
+  toast(`✓ 標準曲線擬合完成（${fitType}）`);
+}
+
+function predictConcentration(lot,tcRatio) {
+  if(!lot.fitted||!lot.fitParams) return null;
+  if(lot.fitType==='4PL'){
+    const{A,B,C,D}=lot.fitParams;
+    const inner=(A-D)/(tcRatio-D)-1;
+    if(inner<=0) return null;
+    return C*Math.pow(inner,1/B);
+  }
+  const pts=lot.fitParams.points.sort((a,b)=>a.ratio-b.ratio);
+  if(tcRatio<=pts[0].ratio) return pts[0].conc;
+  if(tcRatio>=pts[pts.length-1].ratio) return pts[pts.length-1].conc;
+  for(let i=0;i<pts.length-1;i++){
+    if(tcRatio>=pts[i].ratio&&tcRatio<=pts[i+1].ratio){
+      const t=(tcRatio-pts[i].ratio)/(pts[i+1].ratio-pts[i].ratio);
+      return pts[i].conc+t*(pts[i+1].conc-pts[i].conc);
+    }
+  }
+  return null;
+}
+
+function predictRatio(lot,conc) {
+  if(!lot.fitted||!lot.fitParams) return null;
+  if(lot.fitType==='4PL'){const{A,B,C,D}=lot.fitParams;return D+(A-D)/(1+Math.pow(conc/C,B));}
+  const pts=lot.fitParams.points.sort((a,b)=>a.conc-b.conc);
+  if(conc<=pts[0].conc) return pts[0].ratio;
+  if(conc>=pts[pts.length-1].conc) return pts[pts.length-1].ratio;
+  for(let i=0;i<pts.length-1;i++){if(conc>=pts[i].conc&&conc<=pts[i+1].conc){const t=(conc-pts[i].conc)/(pts[i+1].conc-pts[i].conc);return pts[i].ratio+t*(pts[i+1].ratio-pts[i].ratio);}}
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  IMAGE & ANALYSIS
+// ═══════════════════════════════════════════════════════
+let currentBase64=null, currentMime='image/jpeg';
+
+function handleFileSelect(e) {
+  const file=e.target.files[0]; if(!file) return;
+  currentMime=file.type||'image/jpeg';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    currentBase64=ev.target.result.split(',')[1];
+    const img=document.getElementById('preview-img');
+    img.src=ev.target.result; img.style.display='block';
+    document.getElementById('upload-zone').style.display='none';
+    document.getElementById('result-section').style.display='none';
+    updateLotStatus();
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetAnalysis() {
+  currentBase64=null; currentResult=null;
+  document.getElementById('preview-img').style.display='none';
+  document.getElementById('preview-img').src='';
+  document.getElementById('upload-zone').style.display='block';
+  document.getElementById('result-section').style.display='none';
+  document.getElementById('analyze-btn').disabled=true;
+  document.getElementById('file-input').value='';
+}
+
+const STEPS=['偵測試片白殼邊界…','讀取白點 / 黑點參考值…','辨識 C 條帶強度…','辨識 T 條帶強度…','套用色彩校正係數…','計算校正後 T/C ratio…','對應標準曲線…'];
+
+async function runAnalysis() {
+  const lotId=document.getElementById('analyze-lot-select').value;
+  if(!lotId)        return toast('請選擇批次');
+  if(!currentBase64) return toast('請先上傳照片');
+  const apiKey=DB.get('mmp1_apikey');
+  if(!apiKey) return toast('請先在設定輸入 API Key');
+  showLoading(true,STEPS[0]);
+  let si=0;
+  const st=setInterval(()=>{ si=Math.min(si+1,STEPS.length-1); document.getElementById('loading-step').textContent=STEPS[si]; },900);
+  try {
+    const v=await callClaudeVision(apiKey,currentBase64,currentMime);
+    clearInterval(st); showLoading(false);
+    if(!v.valid){ toast('⚠ 無法辨識試片：'+(v.quality_notes||'請重新拍攝')); return; }
+    const lot=getLots().find(l=>l.id===lotId);
+    const conc=lot?.fitted ? predictConcentration(lot,v.tc_ratio_corrected) : null;
+    const s=getSettings();
+    currentResult={
+      lotId, timestamp:new Date().toISOString(),
+      imageQuality:v.image_quality, qualityNotes:v.quality_notes||'',
+      whitepointRaw:v.whitepoint_raw, blackpointRaw:v.blackpoint_raw,
+      cRaw:v.c_band_raw, tRaw:v.t_band_raw,
+      cCorrected:v.c_band_corrected, tCorrected:v.t_band_corrected,
+      tcRatioCorrected:v.tc_ratio_corrected,
+      concentrationNgMl:conc!==null ? Math.round(conc*10)/10 : null,
+      fitType:lot?.fitType||null, hasCurve:lot?.fitted||false,
+    };
+    renderResult(currentResult,s);
+  } catch(e) {
+    clearInterval(st); showLoading(false);
+    toast('❌ 分析失敗：'+(e.message||'請檢查 API Key'));
+    console.error(e);
+  }
+}
+
+async function callClaudeVision(apiKey,base64,mime) {
+  const sys=`You are a precision lateral flow assay (LFA) image analysis engine for MMP-1 colloidal gold immunochromatographic strips.
+
+COLOR CORRECTION PROTOCOL:
+1. WHITEPOINT: Sample the white plastic casing (avoid window/labels). Record average luminance (0–255).
+2. BLACKPOINT: Sample the printed "C" or "T" black text on the casing. Record darkest luminance.
+3. FORMULA: corrected = (raw - blackpoint) / (whitepoint - blackpoint) * 255
+4. Apply to all band readings.
+
+BAND ANALYSIS:
+- Find C band and T band in the membrane window
+- Measure raw luminance (lower = darker = stronger gold band)
+- Apply correction formula
+- tc_ratio_corrected = c_band_corrected / t_band_corrected (C as reference)
+- If c_band_corrected=0: valid=false
+
+Return ONLY JSON:
+{"valid":true,"strip_detected":true,"image_quality":"good"|"fair"|"poor","quality_notes":"","whitepoint_raw":<0-255>,"blackpoint_raw":<0-255>,"c_band_raw":<0-255>,"t_band_raw":<0-255>,"c_band_corrected":<0-255>,"t_band_corrected":<0-255>,"tc_ratio_corrected":<float>,"band_positions":{"c_pct":<0-100>,"t_pct":<0-100>}}
+If undetectable: {"valid":false,"strip_detected":false,"image_quality":"poor","quality_notes":"<reason>","whitepoint_raw":null,"blackpoint_raw":null,"c_band_raw":null,"t_band_raw":null,"c_band_corrected":null,"t_band_corrected":null,"tc_ratio_corrected":null,"band_positions":null}`;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:base64}},{type:'text',text:'Analyze this MMP-1 lateral flow strip with full color correction. Return only JSON.'}]}]})
+  });
+  if(!res.ok){ const t=await res.text(); throw new Error(`API ${res.status}: ${t}`); }
+  const d=await res.json();
+  return JSON.parse(d.content.filter(b=>b.type==='text').map(b=>b.text).join('').replace(/```json|```/g,'').trim());
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER RESULT
+// ═══════════════════════════════════════════════════════
+function renderResult(r,settings) {
+  const s=settings||getSettings();
+  const hasConc=r.concentrationNgMl!==null&&r.concentrationNgMl!==undefined;
+  let label,color,desc;
+  if(!hasConc){ label='T/C RATIO'; color='#58a6ff'; desc=`無標準曲線，T/C = ${r.tcRatioCorrected?.toFixed(3)??'—'}`; }
+  else if(r.concentrationNgMl<s.weakThresh){ label='NEGATIVE'; color='#22c55e'; desc='陰性 — MMP-1 濃度正常'; }
+  else if(r.concentrationNgMl<s.posThresh){ label='WEAK POS'; color='#d29922'; desc='弱陽性 — 建議複驗或追蹤'; }
+  else { label='POSITIVE'; color='#f85149'; desc='陽性 — MMP-1 濃度升高'; }
+  const banner=document.getElementById('result-banner');
+  banner.style.borderColor=color; banner.style.background=color+'18';
+  document.getElementById('res-label').style.color=color;
+  document.getElementById('res-label').textContent=label;
+  document.getElementById('res-conc').innerHTML=hasConc?`${r.concentrationNgMl}<span class="result-unit"> ng/mL</span>`:`<span style="font-size:32px">${r.tcRatioCorrected?.toFixed(3)??'—'}</span>`;
+  document.getElementById('res-desc').textContent=desc;
+  if(hasConc){
+    document.getElementById('scale-ptr').style.left=Math.min(r.concentrationNgMl/250*100,100)+'%';
+    document.getElementById('scale-card').style.display='block';
+  } else document.getElementById('scale-card').style.display='none';
+  document.getElementById('c-bar').style.width=(r.cCorrected/255*100)+'%';
+  document.getElementById('t-bar').style.width=(r.tCorrected/255*100)+'%';
+  document.getElementById('c-val').textContent=r.cCorrected??'—';
+  document.getElementById('t-val').textContent=r.tCorrected??'—';
+  document.getElementById('res-ratio').textContent=r.tcRatioCorrected?.toFixed(4)??'—';
+  document.getElementById('res-white').textContent=r.whitepointRaw??'—';
+  document.getElementById('res-black').textContent=r.blackpointRaw??'—';
+  const qEl=document.getElementById('res-quality');
+  qEl.textContent={good:'良好',fair:'尚可',poor:'不佳'}[r.imageQuality]??'—';
+  qEl.style.color=r.imageQuality==='good'?'var(--accent2)':r.imageQuality==='fair'?'var(--warn)':'var(--danger)';
+  document.getElementById('res-lot').textContent=r.lotId+(r.hasCurve?` (${r.fitType})`:' (無曲線)');
+  document.getElementById('result-section').style.display='block';
+}
+
+// ═══════════════════════════════════════════════════════
+//  HISTORY
+// ═══════════════════════════════════════════════════════
+async function saveToHistory() {
+  if(!currentResult) return;
+  const rec={ ...currentResult, id:Date.now().toString() };
+  const h=getHistory(); h.unshift(rec);
+  DB.set('mmp1_history', h.slice(0,500));
+  // Sync to Sheets
+  if(getScriptUrl()){
+    showLoading(true,'同步至 Sheets…');
+    try{ await sheetsPost({action:'saveHistory',record:rec}); setSyncDot('ok'); toast('✓ 已儲存並同步至 Sheets'); }
+    catch(e){ setSyncDot('err'); toast('✓ 已儲存本機（Sheets 同步失敗）'); }
+    showLoading(false);
+  } else toast('✓ 已儲存至本機記錄');
+}
+
+function renderHistory() {
+  const h=getHistory(); const el=document.getElementById('history-list');
+  const s=getSettings();
+  if(!h.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">尚無記錄</div><div class="empty-sub">完成分析後儲存即可在此查看</div></div>'; return; }
+  el.innerHTML=h.map(r=>{
+    const hasConc=r.concentrationNgMl!==null&&r.concentrationNgMl!==undefined;
+    let color='#58a6ff';
+    if(hasConc){ if(r.concentrationNgMl>=s.posThresh) color='#f85149'; else if(r.concentrationNgMl>=s.weakThresh) color='#d29922'; else color='#22c55e'; }
+    const date=new Date(r.timestamp).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    return `<div class="hist-item">
+      <div>
+        <div class="hist-conc" style="color:${color}">${hasConc?r.concentrationNgMl+' ng/mL':'T/C '+(r.tcRatioCorrected?.toFixed(3)??'—')}</div>
+        <div class="hist-meta">${r.lotId}  ·  T/C ${r.tcRatioCorrected?.toFixed(3)??'—'}  ·  ${date}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteHistory('${r.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteHistory(id) {
+  DB.set('mmp1_history', getHistory().filter(r=>r.id!==id));
+  if(getScriptUrl()){ try{ await sheetsPost({action:'deleteHistory',id}); }catch(e){} }
+  renderHistory();
+}
+
+async function clearHistory() {
+  if(!confirm('確定清除所有歷史記錄？')) return;
+  DB.set('mmp1_history',[]);
+  if(getScriptUrl()){ try{ await sheetsPost({action:'clearHistory'}); }catch(e){} }
+  renderHistory();
+}
+
+// ═══════════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════════
+const ALL_COLUMNS = [
+  { key:'id',                label:'記錄 ID',           default:false },
+  { key:'timestamp',         label:'時間戳記',           default:true  },
+  { key:'lotId',             label:'批次 Lot',           default:true  },
+  { key:'result',            label:'判讀結果',           default:true  },
+  { key:'concentrationNgMl', label:'濃度 (ng/mL)',       default:true  },
+  { key:'tcRatioCorrected',  label:'T/C ratio（校正後）', default:true  },
+  { key:'cCorrected',        label:'C 強度（校正後）',    default:true  },
+  { key:'tCorrected',        label:'T 強度（校正後）',    default:true  },
+  { key:'cRaw',              label:'C 強度（原始）',      default:false },
+  { key:'tRaw',              label:'T 強度（原始）',      default:false },
+  { key:'whitepointRaw',     label:'白點校正值',          default:false },
+  { key:'blackpointRaw',     label:'黑點校正值',          default:false },
+  { key:'imageQuality',      label:'影像品質',            default:true  },
+  { key:'qualityNotes',      label:'品質備註',            default:false },
+  { key:'fitType',           label:'擬合方法',            default:false },
+  { key:'hasCurve',          label:'有無標準曲線',         default:false },
+];
+
+function initExportColumns() {
+  const grid=document.getElementById('col-grid');
+  grid.innerHTML=ALL_COLUMNS.map(c=>`
+    <label class="col-item">
+      <input type="checkbox" id="col_${c.key}" ${c.default?'checked':''}>
+      ${c.label}
+    </label>`).join('');
+}
+
+function selectAllCols(val) {
+  ALL_COLUMNS.forEach(c=>{ const el=document.getElementById('col_'+c.key); if(el) el.checked=val; });
+}
+
+function initExportPanel() {
+  // Populate lot filter
+  const sel=document.getElementById('export-lot-filter');
+  sel.innerHTML='<option value="">全部批次</option>'+getLots().map(l=>`<option value="${l.id}">${l.id}</option>`).join('');
+  refreshExportPreview();
+}
+
+function getFilteredHistory() {
+  let h=getHistory();
+  const lotF=document.getElementById('export-lot-filter')?.value;
+  const resF=document.getElementById('export-result-filter')?.value;
+  const dateFrom=document.getElementById('export-date-from')?.value;
+  const dateTo=document.getElementById('export-date-to')?.value;
+  const s=getSettings();
+  // Attach result label
+  h=h.map(r=>{
+    const c=r.concentrationNgMl;
+    let result='N/A';
+    if(c!==null&&c!==undefined){ if(c>=s.posThresh) result='POSITIVE'; else if(c>=s.weakThresh) result='WEAK POS'; else result='NEGATIVE'; }
+    return {...r, result};
+  });
+  if(lotF)     h=h.filter(r=>r.lotId===lotF);
+  if(resF)     h=h.filter(r=>r.result===resF);
+  if(dateFrom) h=h.filter(r=>r.timestamp>=dateFrom);
+  if(dateTo)   h=h.filter(r=>r.timestamp<=dateTo+'T23:59:59');
+  return h;
+}
+
+function refreshExportPreview() {
+  const h=getFilteredHistory();
+  const s=getSettings();
+  if(!h.length){ document.getElementById('export-summary').innerHTML='<div style="color:var(--muted);font-size:13px">無符合條件的記錄</div>'; return; }
+  const hasConc=h.filter(r=>r.concentrationNgMl!==null&&r.concentrationNgMl!==undefined);
+  const neg=hasConc.filter(r=>r.concentrationNgMl<s.weakThresh).length;
+  const weak=hasConc.filter(r=>r.concentrationNgMl>=s.weakThresh&&r.concentrationNgMl<s.posThresh).length;
+  const pos=hasConc.filter(r=>r.concentrationNgMl>=s.posThresh).length;
+  const vals=hasConc.map(r=>r.concentrationNgMl);
+  const avg=vals.length? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) :'—';
+  const mn=vals.length? Math.min(...vals).toFixed(1) :'—';
+  const mx=vals.length? Math.max(...vals).toFixed(1) :'—';
+  document.getElementById('export-summary').innerHTML=`
+    <div class="metric-row"><span class="metric-key">符合筆數</span><span class="metric-val">${h.length} 筆</span></div>
+    <div class="metric-row"><span class="metric-key">陰性</span><span class="metric-val" style="color:#22c55e">${neg}</span></div>
+    <div class="metric-row"><span class="metric-key">弱陽性</span><span class="metric-val" style="color:#d29922">${weak}</span></div>
+    <div class="metric-row"><span class="metric-key">陽性</span><span class="metric-val" style="color:#f85149">${pos}</span></div>
+    <div class="metric-row"><span class="metric-key">平均濃度</span><span class="metric-val">${avg} ng/mL</span></div>
+    <div class="metric-row"><span class="metric-key">最小 / 最大</span><span class="metric-val">${mn} / ${mx} ng/mL</span></div>`;
+}
+
+function exportCSV() {
+  const h=getFilteredHistory();
+  if(!h.length) return toast('無資料可匯出');
+  const selectedCols=ALL_COLUMNS.filter(c=>document.getElementById('col_'+c.key)?.checked);
+  if(!selectedCols.length) return toast('請至少勾選一個欄位');
+  const s=getSettings();
+  // Add result col if not present
+  const rows=h.map(r=>{
+    const c=r.concentrationNgMl;
+    let result='N/A';
+    if(c!==null&&c!==undefined){ if(c>=s.posThresh) result='POSITIVE'; else if(c>=s.weakThresh) result='WEAK POS'; else result='NEGATIVE'; }
+    return {...r,result};
+  });
+  const header=selectedCols.map(c=>c.label).join(',');
+  const body=rows.map(r=>selectedCols.map(c=>{
+    let v=r[c.key]??'';
+    if(c.key==='timestamp') v=new Date(v).toLocaleString('zh-TW');
+    if(c.key==='hasCurve') v=v?'是':'否';
+    if(typeof v==='string'&&(v.includes(','))||v.includes('"')) v=`"${v.replace(/"/g,'""')}"`;
+    return v;
+  }).join(',')).join('\n');
+  const bom='\uFEFF'; // UTF-8 BOM for Excel
+  const blob=new Blob([bom+header+'\n'+body],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`MMP1_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`✓ 已匯出 ${rows.length} 筆資料`);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════
+function loadSettings() {
+  const s=getSettings();
+  document.getElementById('api-key-input').value=DB.get('mmp1_apikey')||'';
+  document.getElementById('script-url-input').value=getScriptUrl();
+  document.getElementById('thresh-weak').value=s.weakThresh;
+  document.getElementById('thresh-pos').value=s.posThresh;
+  updateSheetsStatus(false);
+}
+
+function saveApiKey() {
+  const k=document.getElementById('api-key-input').value.trim();
+  if(!k) return toast('請輸入 API Key');
+  DB.set('mmp1_apikey',k); toast('✓ API Key 已儲存');
+}
+
+function toggleKeyVis() {
+  const inp=document.getElementById('api-key-input');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+async function saveScriptUrl() {
+  const url=document.getElementById('script-url-input').value.trim();
+  if(!url) return toast('請輸入 Apps Script URL');
+  DB.set('mmp1_script_url',url);
+  const ok=await testConnection();
+  toast(ok?'✓ Sheets 連線成功':'❌ 連線失敗，請確認 URL 與部署設定');
+}
+
+function saveThresholds() {
+  const s=getSettings();
+  s.weakThresh=parseFloat(document.getElementById('thresh-weak').value)||25;
+  s.posThresh=parseFloat(document.getElementById('thresh-pos').value)||45;
+  DB.set('mmp1_settings',s); toast('✓ 臨界值已儲存');
+}
+
+function exportJSON() {
+  const data={lots:getLots(),history:getHistory(),settings:getSettings(),exported:new Date().toISOString()};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download=`mmp1_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function clearAllData() {
+  if(!confirm('確定清除所有本機資料？')) return;
+  ['mmp1_lots','mmp1_history','mmp1_settings','mmp1_apikey','mmp1_script_url','mmp1_sh_sync'].forEach(k=>localStorage.removeItem(k));
+  toast('已清除'); setTimeout(()=>location.reload(),800);
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════
+function showLoading(show,step){
+  document.getElementById('loading').classList.toggle('show',show);
+  if(step) document.getElementById('loading-step').textContent=step;
+}
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// Drag-drop
+const zone=document.getElementById('upload-zone');
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});
+zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f) handleFileSelect({target:{files:[f]}});});
+</script>
+</body>
+</html>
