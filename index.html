@@ -361,9 +361,14 @@ async function sheetsGet(params) {
 async function sheetsPost(body) {
   const url = getScriptUrl();
   if (!url) throw new Error('未設定 Apps Script URL');
+  // 注意：Content-Type 故意用 text/plain，而非 application/json。
+  // Apps Script Web App 不支援回應瀏覽器的 CORS preflight（OPTIONS）請求，
+  // 若用 application/json 會觸發 preflight 而被瀏覽器擋下（CORS 錯誤）。
+  // text/plain 屬於「簡單請求」，瀏覽器不會送 preflight，可直接送達。
+  // Apps Script 端用 e.postData.contents 讀取，內容一樣是 JSON 字串，不受影響。
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(body),
   });
   const data = await res.json();
