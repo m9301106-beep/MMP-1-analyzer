@@ -279,11 +279,12 @@ select option{background:var(--bg2)}
 <div class="panel" id="panel-settings">
   <div class="card">
     <div class="card-title">Anthropic API Key</div>
-    <div class="api-key-wrap">
-      <input type="password" id="api-key-input" placeholder="sk-ant-api03-...">
-      <button class="toggle-key" onclick="toggleKeyVis()">👁</button>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7">
+      ✓ API Key 已改為儲存在 Google Apps Script（Script Properties）中，<br>
+      不再需要在這裡填寫，也不會出現在前端程式碼中，更安全。<br><br>
+      若需要設定或更換 Key，請至 Apps Script 編輯器 →
+      左側「專案設定」⚙️ → Script Properties → <code>ANTHROPIC_API_KEY</code>。
     </div>
-    <button class="btn btn-primary" onclick="saveApiKey()">儲存 API Key</button>
   </div>
 
   <div class="card">
@@ -320,6 +321,7 @@ select option{background:var(--bg2)}
     <div class="metric-row"><span class="metric-key">色彩校正</span><span class="metric-val">白殼＋C/T字樣</span></div>
     <div class="metric-row"><span class="metric-key">曲線擬合</span><span class="metric-val">4PL / 線性插值</span></div>
     <div class="metric-row"><span class="metric-key">資料同步</span><span class="metric-val">Google Sheets</span></div>
+    <div class="metric-row"><span class="metric-key">API 轉發</span><span class="metric-val">Apps Script Proxy</span></div>
   </div>
 </div>
 
@@ -701,14 +703,14 @@ async function runAnalysis() {
   const lotId=document.getElementById('analyze-lot-select').value;
   if(!lotId)        return toast('請選擇批次');
   if(!currentBase64) return toast('請先上傳照片');
-  const apiKey=DB.get('mmp1_apikey');
-  if(!apiKey) return toast('請先在設定輸入 API Key');
+  if(!getScriptUrl()) return toast('請先在設定頁設定 Apps Script URL');
   showLoading(true,STEPS[0]);
   let si=0;
   const st=setInterval(()=>{ si=Math.min(si+1,STEPS.length-1); document.getElementById('loading-step').textContent=STEPS[si]; },900);
   try {
-    const v=await callClaudeVision(apiKey,currentBase64,currentMime);
+    const v=await callClaudeVision(currentBase64,currentMime);
     clearInterval(st); showLoading(false);
+    if(v.error){ toast('❌ 分析失敗：'+v.error); return; }
     if(!v.valid){ toast('⚠ 無法辨識試片：'+(v.quality_notes||'請重新拍攝')); return; }
     const lot=getLots().find(l=>l.id===lotId);
     const conc=lot?.fitted ? predictConcentration(lot,v.tc_ratio_corrected) : null;
@@ -726,38 +728,14 @@ async function runAnalysis() {
     renderResult(currentResult,s);
   } catch(e) {
     clearInterval(st); showLoading(false);
-    toast('❌ 分析失敗：'+(e.message||'請檢查 API Key'));
+    toast('❌ 分析失敗：'+(e.message||'請檢查 Apps Script 連線'));
     console.error(e);
   }
 }
 
-async function callClaudeVision(apiKey,base64,mime) {
-  const sys=`You are a precision lateral flow assay (LFA) image analysis engine for MMP-1 colloidal gold immunochromatographic strips.
-
-COLOR CORRECTION PROTOCOL:
-1. WHITEPOINT: Sample the white plastic casing (avoid window/labels). Record average luminance (0–255).
-2. BLACKPOINT: Sample the printed "C" or "T" black text on the casing. Record darkest luminance.
-3. FORMULA: corrected = (raw - blackpoint) / (whitepoint - blackpoint) * 255
-4. Apply to all band readings.
-
-BAND ANALYSIS:
-- Find C band and T band in the membrane window
-- Measure raw luminance (lower = darker = stronger gold band)
-- Apply correction formula
-- tc_ratio_corrected = c_band_corrected / t_band_corrected (C as reference)
-- If c_band_corrected=0: valid=false
-
-Return ONLY JSON:
-{"valid":true,"strip_detected":true,"image_quality":"good"|"fair"|"poor","quality_notes":"","whitepoint_raw":<0-255>,"blackpoint_raw":<0-255>,"c_band_raw":<0-255>,"t_band_raw":<0-255>,"c_band_corrected":<0-255>,"t_band_corrected":<0-255>,"tc_ratio_corrected":<float>,"band_positions":{"c_pct":<0-100>,"t_pct":<0-100>}}
-If undetectable: {"valid":false,"strip_detected":false,"image_quality":"poor","quality_notes":"<reason>","whitepoint_raw":null,"blackpoint_raw":null,"c_band_raw":null,"t_band_raw":null,"c_band_corrected":null,"t_band_corrected":null,"tc_ratio_corrected":null,"band_positions":null}`;
-  const res=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:base64}},{type:'text',text:'Analyze this MMP-1 lateral flow strip with full color correction. Return only JSON.'}]}]})
-  });
-  if(!res.ok){ const t=await res.text(); throw new Error(`API ${res.status}: ${t}`); }
-  const d=await res.json();
-  return JSON.parse(d.content.filter(b=>b.type==='text').map(b=>b.text).join('').replace(/```json|```/g,'').trim());
+async function callClaudeVision(base64,mime) {
+  // 透過 Apps Script 轉發至 Anthropic API，避免瀏覽器直接呼叫被 CORS 擋下
+  return await sheetsPost({ action:'analyzeImage', base64, mimeType:mime });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -963,22 +941,10 @@ function exportCSV() {
 // ═══════════════════════════════════════════════════════
 function loadSettings() {
   const s=getSettings();
-  document.getElementById('api-key-input').value=DB.get('mmp1_apikey')||'';
   document.getElementById('script-url-input').value=getScriptUrl();
   document.getElementById('thresh-weak').value=s.weakThresh;
   document.getElementById('thresh-pos').value=s.posThresh;
   updateSheetsStatus(false);
-}
-
-function saveApiKey() {
-  const k=document.getElementById('api-key-input').value.trim();
-  if(!k) return toast('請輸入 API Key');
-  DB.set('mmp1_apikey',k); toast('✓ API Key 已儲存');
-}
-
-function toggleKeyVis() {
-  const inp=document.getElementById('api-key-input');
-  inp.type=inp.type==='password'?'text':'password';
 }
 
 async function saveScriptUrl() {
@@ -1006,7 +972,7 @@ function exportJSON() {
 
 function clearAllData() {
   if(!confirm('確定清除所有本機資料？')) return;
-  ['mmp1_lots','mmp1_history','mmp1_settings','mmp1_apikey','mmp1_script_url','mmp1_sh_sync'].forEach(k=>localStorage.removeItem(k));
+  ['mmp1_lots','mmp1_history','mmp1_settings','mmp1_script_url','mmp1_sh_sync'].forEach(k=>localStorage.removeItem(k));
   toast('已清除'); setTimeout(()=>location.reload(),800);
 }
 
